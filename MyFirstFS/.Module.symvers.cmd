@@ -1,0 +1,1 @@
+cmd_/home/capo80/Desktop/LearingFileSystems/MyFirstFS/Module.symvers := sed 's/ko$$/o/' /home/capo80/Desktop/LearingFileSystems/MyFirstFS/modules.order | scripts/mod/modpost -m -a   -o /home/capo80/Desktop/LearingFileSystems/MyFirstFS/Module.symvers -e -i Module.symvers   -T -
