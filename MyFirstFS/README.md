@@ -10,7 +10,7 @@ Create a file as a base for the filesystem and a directory for mounting
 
 Build the module and mount it in the directory (check dsemg to see it it works):
 - make
-- insmod simplefs.ko
-- mount -o loop -t simplefs image ./mount/
+- insmod my_first_fs.ko
+- mount -o loop -t firstfs image ./mount/
 - umount ./mount/
-- rmmod simplefs.ko
+- rmmod my_first_fs.ko
