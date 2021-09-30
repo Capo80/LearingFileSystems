@@ -1,6 +1,6 @@
 # Basic FS
 
-This FS adds some operations to the basic FS so that it actually does something
+This FS adds some operations to  MyFirstFS so that it actually does something
 
 Current operations:
 - iterate, used to read a directory, can be called but it does nothing
