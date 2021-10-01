@@ -2,6 +2,8 @@
 
 This FS is the basics of the basics, can only be mounted and unmounted, no operations implemented
 
+There is no makefs, can mount this on any device.
+
 Pretty much copied from an older commit of: https://github.com/psankar/simplefs
 
 Create a file as a base for the filesystem and a directory for mounting

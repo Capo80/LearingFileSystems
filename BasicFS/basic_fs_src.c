@@ -3,6 +3,12 @@
 #include <linux/fs.h>
 #include <linux/timekeeping.h>
 #include <linux/time.h>
+#include <linux/buffer_head.h>
+#include <linux/types.h>
+#include <linux/slab.h>
+#include <linux/string.h>
+
+#include "basicfs.h"
 
 //the iterate is used by the new readdir operation, we only an empry root inode as of now so we do nothing
 //but we can see the FS accept an "ls" call
@@ -10,8 +16,54 @@
 //there is also a shared version, currently not needed
 static int basicfs_iterate(struct file *filp, struct dir_context* ctx)
 {
-    printk(KERN_INFO "basicfs iterate has been called.\n");
-    return 0;
+    loff_t pos = filp->f_pos; //pos inside the directory
+    struct inode *inode = filp->f_inode; //inode of the directory to read
+    struct super_block *sb = inode->i_sb; //superblock of the FS
+    struct buffer_head *bh;
+    struct basicfs_inode *sfs_inode;
+    struct basicfs_dir_record *record;
+    int i;
+
+    printk(KERN_INFO "We are inside readdir. The pos[%lld], inode number[%lu], superblock magic [%lu]\n", pos, inode->i_ino, sb->s_magic);
+
+    //get the actual inode from the argument
+    sfs_inode = inode->i_private;
+
+    //check that this inode is a directory
+    if (unlikely(!S_ISDIR(sfs_inode->mode))) {
+        printk(KERN_ERR "inode %u not a directory", sfs_inode->inode_no);
+        return -ENOTDIR;
+    }
+
+    //read the information from the device
+    bh = (struct buffer_head *)sb_bread(sb, sfs_inode->data_block_number);
+
+    printk(KERN_INFO "This dir has [%d] childen\n", sfs_inode->dir_children_count);
+
+    //fill the directory struct to return
+    record = (struct basicfs_dir_record *) bh->b_data;
+    for (i=0; i < sfs_inode->dir_children_count; i++) {
+        printk(KERN_INFO "Got filename: %s\n", record->filename);
+        /*
+          now the kernel decides by itself how to organize the directory info
+          we just need to pass it the information
+          parameters are:
+            (context, filename (char*), filename len, position of context, inode number, inode type)
+        */
+        ctx->actor(ctx, record->filename, BASICFS_FILENAME_MAXLEN, ctx->pos, BASICFS_ROOT_INODE_NUMBER, S_IFDIR);
+        ctx->pos += sizeof(struct basicfs_dir_record);  //move context forward
+        record++;   // move onto next children
+    }
+    /*
+    old way
+    for (i=0; i < sfs_inode->dir_children_count; i++) {
+        printk(KERN_INFO "Got filename: %s\n", record->filename);
+        filldir(dirent, record->filename, BASICFS_FILENAME_MAXLEN, pos, record->inode_no, DT_UNKNOWN);
+        pos += sizeof(struct basicfs_dir_record);
+        record ++;
+    }
+    */
+    return 1;
 }
 
 //add the iterate in the dir operations
@@ -79,18 +131,51 @@ struct inode *basicfs_get_inode(struct super_block *sb, const struct inode *dir,
 //function that fill the super block with information
 //not much inside for now
 int basicfs_fill_super(struct super_block *sb, void *data, int silent)
-{
+{   
+    struct inode *root_inode;
     struct inode *inode;
+    struct buffer_head *bh;
+    struct basicfs_sb_info *sb_disk;
+    struct timespec64 curr_time;
+
+    //we now look if the block device has a superblock with the correct information
+    bh = (struct buffer_head *)sb_bread(sb, 0);
+
+    sb_disk = (struct basicfs_sb_info *)bh->b_data;
+
+    printk(KERN_INFO "The magic number obtained in disk is: [%d]\n", sb_disk->magic);
+
+    if (unlikely(sb_disk->magic != BASICFS_MAGIC)) {
+        printk(KERN_ERR "The filesystem that you try to mount is not of type basicfs. Magicnumber mismatch.");
+        return -EPERM;
+    }
+
+    if (unlikely(sb_disk->block_size != BASICFS_DEFAULT_BLOCK_SIZE)) {
+        printk(KERN_ERR "basicfs seem to be formatted using a non-standard block size.");
+        return -EPERM;
+    }
+
+    printk(KERN_INFO "basicfs filesystem of version [%d] formatted with a block size of [%d] detected in the device.\n", sb_disk->version, sb_disk->block_size);
 
     //Unique identifier of the filesystem
-    sb->s_magic = 0x42424242;
+    sb->s_magic = BASICFS_MAGIC;
 
-    //get a root inode for the system (its a directory)
-    inode = basicfs_get_inode(sb, NULL, S_IFDIR, 0);    
-    //add the operations to the root inode
-    inode->i_op = &basicfs_inode_ops;
-    inode->i_fop = &basicfs_dir_operations;
-    sb->s_root = d_make_root(inode);
+    sb->s_fs_info = sb_disk; // <--- ??
+
+    //set up our root inode
+    root_inode = new_inode(sb);
+    root_inode->i_ino = BASICFS_ROOT_INODE_NUMBER;
+    inode_init_owner(root_inode, NULL, S_IFDIR);
+    root_inode->i_sb = sb;
+    root_inode->i_op = &basicfs_inode_ops;
+    root_inode->i_fop = &basicfs_dir_operations;
+
+    ktime_get_real_ts64(&curr_time);
+    root_inode->i_atime = root_inode->i_mtime = root_inode->i_ctime = curr_time;
+
+    root_inode->i_private = &(sb_disk->root_inode);
+
+    sb->s_root = d_make_root(root_inode);
     if (!sb->s_root)
         return -ENOMEM;
 
