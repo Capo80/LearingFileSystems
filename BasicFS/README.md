@@ -3,7 +3,7 @@
 This FS adds some operations to  MyFirstFS so that it actually does something.
 
 Current operations:
-- iterate, used to read a directory, can be called but it does nothing
+- iterate, used to read a directory, currently only read the information of the root inode (which has no children)
 
 We now have an actual superblock struct definition for this FS, with very little information because we don't do much.
 
