@@ -8,9 +8,13 @@
 #define ONEFILEFS_FILENAME_MAXLEN 255
 
 #define ONEFILEFS_SB_BLOCK_NUMBER 0
-#define ONEFILEFS_FILE_BLOCK_NUMBER 1
+
 #define ONEFILEFS_ROOT_INODE_NUMBER 1
-#define ONEFILEFS_ROOTDIR_DATABLOCK_NUMBER 2
+#define ONEFILEFS_FILE_INODE_NUMBER 2
+
+#define ONEFILEFS_INODES_BLOCK_NUMBER 1
+#define ONEFILEFS_ROOT_DATA_BLOCK_NUMBER 2
+#define ONEFILEFS_FILE_DATA_BLOCK_NUMBER 3
 
 //inode definition
 struct onefilefs_inode {
@@ -24,7 +28,8 @@ struct onefilefs_inode {
 	};
 };
 
-//dir definition
+//dir definition (how the dir datablock is organized)
+// our dir block is filled with an array of theese (only one actually)
 struct onefilefs_dir_record {
 	char filename[ONEFILEFS_FILENAME_MAXLEN];
 	uint64_t inode_no;

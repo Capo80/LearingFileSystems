@@ -20,14 +20,11 @@ static int onefilefs_iterate(struct file *file, struct dir_context* ctx)
     struct inode *inode = file_inode(file); //inode of the directory to read
     struct super_block *sb = inode->i_sb; //superblock of the FS
     struct buffer_head *bh;
-    struct onefilefs_inode *sfs_inode;
+    struct onefilefs_inode *sfs_inode = inode->i_private;
     struct onefilefs_dir_record *record;
     int parent = inode->i_ino;
 
-    printk(KERN_INFO "We are inside readdir. The pos[%lld], inode number[%lu], superblock magic [%lu]\n", ctx->pos, inode->i_ino, sb->s_magic);
-
-    //get the actual inode from the argument
-    sfs_inode = inode->i_private;
+    printk(KERN_INFO "We are inside readdir. The pos[%lld], inode number[%lu], superblock magic [%lu], datablock number [%llu]\n", ctx->pos, inode->i_ino, sb->s_magic,  sfs_inode->data_block_number);
 
     //check that this inode is a directory
     if (unlikely(!S_ISDIR(sfs_inode->mode))) {
@@ -72,7 +69,7 @@ static int onefilefs_iterate(struct file *file, struct dir_context* ctx)
         record ++;
     }
     */
-    brelse(bh);
+    //brelse(bh);
     return 1;
 }
 
@@ -109,10 +106,10 @@ struct onefilefs_inode *onefilefs_get_inode(struct super_block *sb, uint64_t ino
 
     // who needs to release this??
     // do i malloc and copy the memory??
-    bh = (struct buffer_head *)sb_bread(sb, ONEFILEFS_FILE_BLOCK_NUMBER); // we only use one block currently
+    bh = (struct buffer_head *)sb_bread(sb, ONEFILEFS_INODES_BLOCK_NUMBER); // all of our 2 inodes are in here
     sfs_inode = (struct onefilefs_inode *) bh->b_data;
 
-    //currently we have only one inode in the block this is not that useful
+    //currently we have only 2 inodes in the block this is not that useful
     for (i=0; i < sfs_sb->inodes_count; i++) {
         if (sfs_inode->inode_no == inode_no) {
             return sfs_inode;
