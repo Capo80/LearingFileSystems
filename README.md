@@ -8,6 +8,10 @@ All the file system are tested on a kernel linux 5.8.
 
 ## Resources
 
+An implementation of every operation of a FS (file present in the linux kernel):
+
+https://elixir.bootlin.com/linux/latest/source/fs/libfs.c
+
 A simple FS implemtation, can follow commits for incremental development: 
 
 https://github.com/psankar/simplefs
