@@ -6,4 +6,18 @@ Every folder is a different filesystem, i am doing an incremental approach to ma
 
 All the file system are tested on a kernel linux 5.8.
 
-Currrently following https://github.com/psankar/simplefs
+## Resources
+
+- A SimpleFS implemtation, can follow commits for incremental development: 
+
+https://github.com/psankar/simplefs
+
+- Quick, simple, hands-on explanation of VFS end FS
+
+https://devarea.com/wp-content/uploads/2017/10/Linux-VFS-and-Block.pdf
+
+- Linux kernel documentation:
+
+https://linux-kernel-labs.github.io/refs/heads/master/labs/filesystems_part1.html
+
+https://linux-kernel-labs.github.io/refs/heads/master/labs/filesystems_part2.html
