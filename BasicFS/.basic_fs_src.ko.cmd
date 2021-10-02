@@ -1,0 +1,1 @@
+cmd_/home/capo80/Desktop/LearingFileSystems/BasicFS/basic_fs_src.ko := ld -r -m elf_x86_64  -z max-page-size=0x200000 --build-id=sha1  -T ./scripts/module-common.lds -o /home/capo80/Desktop/LearingFileSystems/BasicFS/basic_fs_src.ko /home/capo80/Desktop/LearingFileSystems/BasicFS/basic_fs_src.o /home/capo80/Desktop/LearingFileSystems/BasicFS/basic_fs_src.mod.o;  true

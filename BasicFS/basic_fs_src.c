@@ -31,23 +31,26 @@ static int basicfs_iterate(struct file *file, struct dir_context* ctx)
 
     //check that this inode is a directory
     if (unlikely(!S_ISDIR(sfs_inode->mode))) {
-        printk(KERN_ERR "inode %u not a directory", sfs_inode->inode_no);
+        printk(KERN_ERR "inode %llu not a directory", sfs_inode->inode_no);
         return -ENOTDIR;
     }
 
     //read the information from the device
     bh = (struct buffer_head *)sb_bread(sb, sfs_inode->data_block_number);
 
-    printk(KERN_INFO "This dir has [%d] childen\n", sfs_inode->dir_children_count);
+    printk(KERN_INFO "This dir has [%lld] childen\n", sfs_inode->dir_children_count);
 
     //we have a total of 2 + children files we can return, if we get asked more return nothing
-    if (ctx->pos == 2 + sfs_inode->dir_children_count)
+    if (ctx->pos == 2 + sfs_inode->dir_children_count) {
+        brelse(bh);
         return 0;
+    }
 
     //now pass the . and .. entries
     if (ctx->pos < 2) {
         if (!dir_emit_dots(file, ctx)) {
             printk(KERN_ERR "Could not emit dots\n");
+            brelse(bh);
             return 0;
         }
         ctx->pos = 2;
@@ -69,6 +72,7 @@ static int basicfs_iterate(struct file *file, struct dir_context* ctx)
         record ++;
     }
     */
+    brelse(bh);
     return 1;
 }
 
@@ -93,45 +97,30 @@ static struct inode_operations basicfs_inode_ops = {
 };
 
 
-// this is the fuction to creates a new inode
-// @sb: superblock of the filesystem
-// @dir: directory inode in which to create the new inode
-// @dev: device of the filesystem
-struct inode *basicfs_get_inode(struct super_block *sb, const struct inode *dir, umode_t mode, dev_t dev)
+// get an inode from its inode number
+// currently we have only one inode, the root inode, which is in block 1, so we simply return that
+struct basicfs_inode *basicfs_get_inode(struct super_block *sb, uint64_t inode_no)
 {
-    struct timespec64 curr_time;
+    struct basicfs_sb_info *sfs_sb = sb->s_fs_info;
+    struct basicfs_inode *sfs_inode = NULL;
 
-    //allocates the inode using superblock operations
-    struct inode *inode = new_inode(sb);
+    int i;
+    struct buffer_head *bh;
 
-    if (inode) {
-        inode->i_ino = get_next_ino();
+    // who needs to release this??
+    // do i malloc and copy the memory??
+    bh = (struct buffer_head *)sb_bread(sb, BASICFS_FILE_BLOCK_NUMBER); // we only use one block currently
+    sfs_inode = (struct basicfs_inode *) bh->b_data;
 
-        //inits inode users
-        inode_init_owner(inode, dir, mode);
-        
-        ktime_get_real_ts64(&curr_time);
-        inode->i_atime = inode->i_mtime = inode->i_ctime = curr_time;
-
-        switch (mode & S_IFMT) {
-        //new inode is a dir
-        case S_IFDIR:
-            /* i_nlink will be initialized to 1 in the inode_init_always function
-             * (that gets called inside the new_inode function),
-             * We change it to 2 for directories, for covering the "." entry */
-            //number of links that exists for this inode (its new so only one)
-            inc_nlink(inode);
-            break;
-        //new
-        case S_IFREG:
-        case S_IFLNK:
-        default:
-            printk(KERN_ERR "basicfs can create meaningful inode for only root directory at the moment\n");
-            return NULL;
-            break;
+    //currently we have only one inode in the block this is not that useful
+    for (i=0; i < sfs_sb->inodes_count; i++) {
+        if (sfs_inode->inode_no == inode_no) {
+            return sfs_inode;
         }
+        sfs_inode++;
     }
-    return inode;
+
+    return NULL;
 }
 
 //function that fill the super block with information
@@ -144,11 +133,11 @@ int basicfs_fill_super(struct super_block *sb, void *data, int silent)
     struct timespec64 curr_time;
 
     //we now look if the block device has a superblock with the correct information
-    bh = (struct buffer_head *)sb_bread(sb, 0);
+    bh = (struct buffer_head *)sb_bread(sb, BASICFS_SB_BLOCK_NUMBER);
 
     sb_disk = (struct basicfs_sb_info *)bh->b_data;
 
-    printk(KERN_INFO "The magic number obtained in disk is: [%d]\n", sb_disk->magic);
+    printk(KERN_INFO "The magic number obtained in disk is: [%lld]\n", sb_disk->magic);
 
     if (unlikely(sb_disk->magic != BASICFS_MAGIC)) {
         printk(KERN_ERR "The filesystem that you try to mount is not of type basicfs. Magicnumber mismatch.");
@@ -160,7 +149,7 @@ int basicfs_fill_super(struct super_block *sb, void *data, int silent)
         return -EPERM;
     }
 
-    printk(KERN_INFO "basicfs filesystem of version [%d] formatted with a block size of [%d] detected in the device.\n", sb_disk->version, sb_disk->block_size);
+    printk(KERN_INFO "basicfs filesystem of version [%lld] formatted with a block size of [%lld] detected in the device.\n", sb_disk->version, sb_disk->block_size);
 
     //Unique identifier of the filesystem
     sb->s_magic = BASICFS_MAGIC;
@@ -178,7 +167,8 @@ int basicfs_fill_super(struct super_block *sb, void *data, int silent)
     ktime_get_real_ts64(&curr_time);
     root_inode->i_atime = root_inode->i_mtime = root_inode->i_ctime = curr_time;
 
-    root_inode->i_private = &(sb_disk->root_inode);
+    //get our root inode from the disk insted of the superblock
+    root_inode->i_private = basicfs_get_inode(sb, BASICFS_ROOT_INODE_NUMBER);
 
     sb->s_root = d_make_root(root_inode);
     if (!sb->s_root)
