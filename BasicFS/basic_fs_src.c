@@ -12,19 +12,19 @@
 
 //the iterate is used by the new readdir operation, we only an empry root inode as of now so we do nothing
 //but we can see the FS accept an "ls" call
-//if we had a real system here we would search for the inode of the directory in filp structure and fill the struct dirent with the information
+//if we had a real system here we would search for the inode of the directory in file structure and fill the struct dirent with the information
 //there is also a shared version, currently not needed
-static int basicfs_iterate(struct file *filp, struct dir_context* ctx)
+//the ctx gives us information on where the VFS wants to start reading
+static int basicfs_iterate(struct file *file, struct dir_context* ctx)
 {
-    loff_t pos = filp->f_pos; //pos inside the directory
-    struct inode *inode = filp->f_inode; //inode of the directory to read
+    struct inode *inode = file_inode(file); //inode of the directory to read
     struct super_block *sb = inode->i_sb; //superblock of the FS
     struct buffer_head *bh;
     struct basicfs_inode *sfs_inode;
     struct basicfs_dir_record *record;
-    int i;
+    int parent = inode->i_ino;
 
-    printk(KERN_INFO "We are inside readdir. The pos[%lld], inode number[%lu], superblock magic [%lu]\n", pos, inode->i_ino, sb->s_magic);
+    printk(KERN_INFO "We are inside readdir. The pos[%lld], inode number[%lu], superblock magic [%lu]\n", ctx->pos, inode->i_ino, sb->s_magic);
 
     //get the actual inode from the argument
     sfs_inode = inode->i_private;
@@ -40,18 +40,24 @@ static int basicfs_iterate(struct file *filp, struct dir_context* ctx)
 
     printk(KERN_INFO "This dir has [%d] childen\n", sfs_inode->dir_children_count);
 
-    //fill the directory struct to return
+    //we have a total of 2 + children files we can return, if we get asked more return nothing
+    if (ctx->pos == 2 + sfs_inode->dir_children_count)
+        return 0;
+
+    //now pass the . and .. entries
+    if (ctx->pos < 2) {
+        if (!dir_emit_dots(file, ctx)) {
+            printk(KERN_ERR "Could not emit dots\n");
+            return 0;
+        }
+        ctx->pos = 2;
+    }
+
+    //finally iterate through the actual children
     record = (struct basicfs_dir_record *) bh->b_data;
-    for (i=0; i < sfs_inode->dir_children_count; i++) {
+    for (; ctx->pos < sfs_inode->dir_children_count+2; ctx->pos++) {
         printk(KERN_INFO "Got filename: %s\n", record->filename);
-        /*
-          now the kernel decides by itself how to organize the directory info
-          we just need to pass it the information
-          parameters are:
-            (context, filename (char*), filename len, position of context, inode number, inode type)
-        */
-        ctx->actor(ctx, record->filename, BASICFS_FILENAME_MAXLEN, ctx->pos, BASICFS_ROOT_INODE_NUMBER, S_IFDIR);
-        ctx->pos += sizeof(struct basicfs_dir_record);  //move context forward
+        dir_emit(ctx, record->filename, BASICFS_FILENAME_MAXLEN, parent, S_IFDIR);
         record++;   // move onto next children
     }
     /*
@@ -133,7 +139,6 @@ struct inode *basicfs_get_inode(struct super_block *sb, const struct inode *dir,
 int basicfs_fill_super(struct super_block *sb, void *data, int silent)
 {   
     struct inode *root_inode;
-    struct inode *inode;
     struct buffer_head *bh;
     struct basicfs_sb_info *sb_disk;
     struct timespec64 curr_time;
