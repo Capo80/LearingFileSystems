@@ -1,1 +1,0 @@
-cmd_/home/capo80/Desktop/LearingFileSystems/BasicFS/modules.order := {   echo /home/capo80/Desktop/LearingFileSystems/BasicFS/basic_fs_src.ko; :; } | awk '!x[$$0]++' - > /home/capo80/Desktop/LearingFileSystems/BasicFS/modules.order
