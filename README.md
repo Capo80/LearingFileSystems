@@ -4,6 +4,10 @@ A repositories containing the code i used to learn about FileSystem programming 
 
 Every folder is a different filesystem, i am doing an incremental approach to make things simpler. Every folder contains a README with information on the code and how to run it.
 
+Current FileSystems:
+- MyFirstFS, the simplest you, mount and umount, nothing else
+- OneFileFS, a filesystem with a single file
+
 All the file system are tested on a kernel linux 5.8.
 
 ## Resources
