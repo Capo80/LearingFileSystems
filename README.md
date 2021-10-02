@@ -8,15 +8,15 @@ All the file system are tested on a kernel linux 5.8.
 
 ## Resources
 
-- A SimpleFS implemtation, can follow commits for incremental development: 
+A simple FS implemtation, can follow commits for incremental development: 
 
 https://github.com/psankar/simplefs
 
-- Quick, simple, hands-on explanation of VFS end FS
+Quick, simple, hands-on explanation of VFS end FS
 
 https://devarea.com/wp-content/uploads/2017/10/Linux-VFS-and-Block.pdf
 
-- Linux kernel documentation:
+Linux kernel documentation:
 
 https://linux-kernel-labs.github.io/refs/heads/master/labs/filesystems_part1.html
 
