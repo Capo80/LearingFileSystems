@@ -8,20 +8,20 @@
 #include <linux/slab.h>
 #include <linux/string.h>
 
-#include "basicfs.h"
+#include "onefilefs.h"
 
 //the iterate is used by the new readdir operation, we only an empry root inode as of now so we do nothing
 //but we can see the FS accept an "ls" call
 //if we had a real system here we would search for the inode of the directory in file structure and fill the struct dirent with the information
 //there is also a shared version, currently not needed
 //the ctx gives us information on where the VFS wants to start reading
-static int basicfs_iterate(struct file *file, struct dir_context* ctx)
+static int onefilefs_iterate(struct file *file, struct dir_context* ctx)
 {
     struct inode *inode = file_inode(file); //inode of the directory to read
     struct super_block *sb = inode->i_sb; //superblock of the FS
     struct buffer_head *bh;
-    struct basicfs_inode *sfs_inode;
-    struct basicfs_dir_record *record;
+    struct onefilefs_inode *sfs_inode;
+    struct onefilefs_dir_record *record;
     int parent = inode->i_ino;
 
     printk(KERN_INFO "We are inside readdir. The pos[%lld], inode number[%lu], superblock magic [%lu]\n", ctx->pos, inode->i_ino, sb->s_magic);
@@ -57,18 +57,18 @@ static int basicfs_iterate(struct file *file, struct dir_context* ctx)
     }
 
     //finally iterate through the actual children
-    record = (struct basicfs_dir_record *) bh->b_data;
+    record = (struct onefilefs_dir_record *) bh->b_data;
     for (; ctx->pos < sfs_inode->dir_children_count+2; ctx->pos++) {
         printk(KERN_INFO "Got filename: %s\n", record->filename);
-        dir_emit(ctx, record->filename, BASICFS_FILENAME_MAXLEN, parent, S_IFDIR);
+        dir_emit(ctx, record->filename, ONEFILEFS_FILENAME_MAXLEN, parent, S_IFDIR);
         record++;   // move onto next children
     }
     /*
     old way
     for (i=0; i < sfs_inode->dir_children_count; i++) {
         printk(KERN_INFO "Got filename: %s\n", record->filename);
-        filldir(dirent, record->filename, BASICFS_FILENAME_MAXLEN, pos, record->inode_no, DT_UNKNOWN);
-        pos += sizeof(struct basicfs_dir_record);
+        filldir(dirent, record->filename, ONEFILEFS_FILENAME_MAXLEN, pos, record->inode_no, DT_UNKNOWN);
+        pos += sizeof(struct onefilefs_dir_record);
         record ++;
     }
     */
@@ -77,40 +77,40 @@ static int basicfs_iterate(struct file *file, struct dir_context* ctx)
 }
 
 //add the iterate in the dir operations
-const struct file_operations basicfs_dir_operations = {
+const struct file_operations onefilefs_dir_operations = {
     .owner = THIS_MODULE,
-    .iterate = basicfs_iterate,
+    .iterate = onefilefs_iterate,
 };
 
 //not really sure what this is supposed to do for now
 //probrably recovers a dentry from an inode?
-struct dentry *basicfs_lookup(struct inode *parent_inode,
+struct dentry *onefilefs_lookup(struct inode *parent_inode,
                    struct dentry *child_dentry, unsigned int flags)
 {
-    printk(KERN_INFO "basicfs lookup has been called.\n");
+    printk(KERN_INFO "onefilefs lookup has been called.\n");
     return NULL;
 }
 
 //look up goes in the inode operations
-static struct inode_operations basicfs_inode_ops = {
-    .lookup = basicfs_lookup,
+static struct inode_operations onefilefs_inode_ops = {
+    .lookup = onefilefs_lookup,
 };
 
 
 // get an inode from its inode number
 // currently we have only one inode, the root inode, which is in block 1, so we simply return that
-struct basicfs_inode *basicfs_get_inode(struct super_block *sb, uint64_t inode_no)
+struct onefilefs_inode *onefilefs_get_inode(struct super_block *sb, uint64_t inode_no)
 {
-    struct basicfs_sb_info *sfs_sb = sb->s_fs_info;
-    struct basicfs_inode *sfs_inode = NULL;
+    struct onefilefs_sb_info *sfs_sb = sb->s_fs_info;
+    struct onefilefs_inode *sfs_inode = NULL;
 
     int i;
     struct buffer_head *bh;
 
     // who needs to release this??
     // do i malloc and copy the memory??
-    bh = (struct buffer_head *)sb_bread(sb, BASICFS_FILE_BLOCK_NUMBER); // we only use one block currently
-    sfs_inode = (struct basicfs_inode *) bh->b_data;
+    bh = (struct buffer_head *)sb_bread(sb, ONEFILEFS_FILE_BLOCK_NUMBER); // we only use one block currently
+    sfs_inode = (struct onefilefs_inode *) bh->b_data;
 
     //currently we have only one inode in the block this is not that useful
     for (i=0; i < sfs_sb->inodes_count; i++) {
@@ -125,50 +125,50 @@ struct basicfs_inode *basicfs_get_inode(struct super_block *sb, uint64_t inode_n
 
 //function that fill the super block with information
 //not much inside for now
-int basicfs_fill_super(struct super_block *sb, void *data, int silent)
+int onefilefs_fill_super(struct super_block *sb, void *data, int silent)
 {   
     struct inode *root_inode;
     struct buffer_head *bh;
-    struct basicfs_sb_info *sb_disk;
+    struct onefilefs_sb_info *sb_disk;
     struct timespec64 curr_time;
 
     //we now look if the block device has a superblock with the correct information
-    bh = (struct buffer_head *)sb_bread(sb, BASICFS_SB_BLOCK_NUMBER);
+    bh = (struct buffer_head *)sb_bread(sb, ONEFILEFS_SB_BLOCK_NUMBER);
 
-    sb_disk = (struct basicfs_sb_info *)bh->b_data;
+    sb_disk = (struct onefilefs_sb_info *)bh->b_data;
 
     printk(KERN_INFO "The magic number obtained in disk is: [%lld]\n", sb_disk->magic);
 
-    if (unlikely(sb_disk->magic != BASICFS_MAGIC)) {
-        printk(KERN_ERR "The filesystem that you try to mount is not of type basicfs. Magicnumber mismatch.");
+    if (unlikely(sb_disk->magic != ONEFILEFS_MAGIC)) {
+        printk(KERN_ERR "The filesystem that you try to mount is not of type onefilefs. Magicnumber mismatch.");
         return -EPERM;
     }
 
-    if (unlikely(sb_disk->block_size != BASICFS_DEFAULT_BLOCK_SIZE)) {
-        printk(KERN_ERR "basicfs seem to be formatted using a non-standard block size.");
+    if (unlikely(sb_disk->block_size != ONEFILEFS_DEFAULT_BLOCK_SIZE)) {
+        printk(KERN_ERR "onefilefs seem to be formatted using a non-standard block size.");
         return -EPERM;
     }
 
-    printk(KERN_INFO "basicfs filesystem of version [%lld] formatted with a block size of [%lld] detected in the device.\n", sb_disk->version, sb_disk->block_size);
+    printk(KERN_INFO "onefilefs filesystem of version [%lld] formatted with a block size of [%lld] detected in the device.\n", sb_disk->version, sb_disk->block_size);
 
     //Unique identifier of the filesystem
-    sb->s_magic = BASICFS_MAGIC;
+    sb->s_magic = ONEFILEFS_MAGIC;
 
     sb->s_fs_info = sb_disk; // <--- ??
 
     //set up our root inode
     root_inode = new_inode(sb);
-    root_inode->i_ino = BASICFS_ROOT_INODE_NUMBER;
+    root_inode->i_ino = ONEFILEFS_ROOT_INODE_NUMBER;
     inode_init_owner(root_inode, NULL, S_IFDIR);
     root_inode->i_sb = sb;
-    root_inode->i_op = &basicfs_inode_ops;
-    root_inode->i_fop = &basicfs_dir_operations;
+    root_inode->i_op = &onefilefs_inode_ops;
+    root_inode->i_fop = &onefilefs_dir_operations;
 
     ktime_get_real_ts64(&curr_time);
     root_inode->i_atime = root_inode->i_mtime = root_inode->i_ctime = curr_time;
 
     //get our root inode from the disk insted of the superblock
-    root_inode->i_private = basicfs_get_inode(sb, BASICFS_ROOT_INODE_NUMBER);
+    root_inode->i_private = onefilefs_get_inode(sb, ONEFILEFS_ROOT_INODE_NUMBER);
 
     sb->s_root = d_make_root(root_inode);
     if (!sb->s_root)
@@ -177,15 +177,15 @@ int basicfs_fill_super(struct super_block *sb, void *data, int silent)
     return 0;
 }
 
-static void basicfs_kill_superblock(struct super_block *s)
+static void onefilefs_kill_superblock(struct super_block *s)
 {
-    printk(KERN_INFO "basicfs superblock is destroyed. Unmount succesful.\n");
+    printk(KERN_INFO "onefilefs superblock is destroyed. Unmount succesful.\n");
     //we have no information in our superblock currently
     return;
 }
 
 //ramsfs_mount, called on file system mounting (duh)
-struct dentry *basicfs_mount(struct file_system_type *fs_type, int flags, const char *dev_name, void *data)
+struct dentry *onefilefs_mount(struct file_system_type *fs_type, int flags, const char *dev_name, void *data)
 {
     //mount_nodev is for a virtual file system, or one that doesnt need a real device
     //return mount_nodev(fs_type, flags, data, ramfs_fill_super);
@@ -193,54 +193,54 @@ struct dentry *basicfs_mount(struct file_system_type *fs_type, int flags, const 
     //mount_bdev is for a file system with an actual block device
     struct dentry *ret;
 
-    ret = mount_bdev(fs_type, flags, dev_name, data, basicfs_fill_super);
+    ret = mount_bdev(fs_type, flags, dev_name, data, onefilefs_fill_super);
 
     if (unlikely(IS_ERR(ret)))
-        printk(KERN_ERR "Error mounting basicfs");
+        printk(KERN_ERR "Error mounting onefilefs");
     else
-        printk(KERN_INFO "basicfs is succesfully mounted on [%s]\n",dev_name);
+        printk(KERN_INFO "onefilefs is succesfully mounted on [%s]\n",dev_name);
 
     return ret;
 }
 
 //file system structure
-static struct file_system_type basicfs_type = {
-        .name           = "basicfs",
-        .mount          = basicfs_mount,
-        .kill_sb        = basicfs_kill_superblock,
+static struct file_system_type onefilefs_type = {
+        .name           = "onefilefs",
+        .mount          = onefilefs_mount,
+        .kill_sb        = onefilefs_kill_superblock,
         .fs_flags       = FS_USERNS_MOUNT,
 };
 
-static int basicfs_init(void)
+static int onefilefs_init(void)
 {
     int ret;
 
     //register filesystem
-    ret = register_filesystem(&basicfs_type);
+    ret = register_filesystem(&onefilefs_type);
     if (likely(ret == 0))
-        printk(KERN_INFO "Sucessfully registered basicfs\n");
+        printk(KERN_INFO "Sucessfully registered onefilefs\n");
     else
-        printk(KERN_ERR "Failed to register basicfs. Error:[%d]", ret);
+        printk(KERN_ERR "Failed to register onefilefs. Error:[%d]", ret);
 
     return ret;
 }
 
-static void basicfs_exit(void)
+static void onefilefs_exit(void)
 {
     int ret;
 
     //unregister filesystem
-    ret = unregister_filesystem(&basicfs_type);
+    ret = unregister_filesystem(&onefilefs_type);
 
     if (likely(ret == 0))
-        printk(KERN_INFO "Sucessfully unregistered basicfs\n");
+        printk(KERN_INFO "Sucessfully unregistered onefilefs\n");
     else
-        printk(KERN_ERR "Failed to unregister basicfs. Error:[%d]", ret);
+        printk(KERN_ERR "Failed to unregister onefilefs. Error:[%d]", ret);
 }
 
-module_init(basicfs_init);
-module_exit(basicfs_exit);
+module_init(onefilefs_init);
+module_exit(onefilefs_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Pasquale Caporaso <caporasopasquale97@gmail.com>");
-MODULE_DESCRIPTION("BASIC_FS");
+MODULE_DESCRIPTION("ONEFILEFS");

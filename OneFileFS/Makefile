@@ -1,10 +1,10 @@
-obj-m := basic_fs_src.o
-simplefs-objs := basic_fs.o
+obj-m := onefilefs.o
+simplefs-objs := onefilefs.o
 
 all:
-	gcc basicmakefs.c -o basicmakefs
+	gcc onefilemakefs.c -o onefilemakefs
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 
 clean:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
-	rm basicmakefs
+	rm onefilemakefs
