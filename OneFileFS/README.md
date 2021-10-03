@@ -12,6 +12,8 @@ This FS contains a single file, the block organization is the following.
 
 Current operations:
 - iterate, used to read a directory, it reads the information of the root dir, which has only one children, the file
+- lookup, connect a dentry to an inode (this is used by ls to read the file information)
+- file read, reads our only file
 
 This FS has an actual superblock struct definition, with very little information because we don't do much.
 
