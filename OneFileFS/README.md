@@ -11,7 +11,7 @@ This FS contains a single file, the block organization is the following.
 ```
 
 Current operations:
-- iterate, used to read a directory, it reads the information of the root dir, which hs only one children, the file
+- iterate, used to read a directory, it reads the information of the root dir, which has only one children, the file
 
 This FS has an actual superblock struct definition, with very little information because we don't do much.
 
