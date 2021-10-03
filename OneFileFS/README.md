@@ -25,7 +25,7 @@ Current information created by makefs:
 - File inode
 - File contents
 
-The FS will not not accept a mount on a disk that is not correctly set up with the superblock information (the rest cna be omitted).
+The FS will not not accept a mount on a disk that is not correctly set up with the superblock information (the rest can be omitted).
 
 Still following older commits of: https://github.com/psankar/simplefs, but i am adapting the code for newer kernel versions
 
