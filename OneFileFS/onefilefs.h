@@ -16,6 +16,7 @@
 #define ONEFILEFS_ROOT_DATA_BLOCK_NUMBER 2
 #define ONEFILEFS_FILE_DATA_BLOCK_NUMBER 3
 
+
 //inode definition
 struct onefilefs_inode {
 	mode_t mode;
@@ -48,5 +49,12 @@ struct onefilefs_sb_info {
 	char padding[ (4 * 1024) - (5 * sizeof(uint64_t))];
 };
 
+// file.c
+extern const struct inode_operations onefilefs_inode_ops;
+extern const struct file_operations onefilefs_file_operations; 
+extern struct onefilefs_inode *onefilefs_get_inode(struct super_block *sb, uint64_t inode_no);
+
+// dir.c
+extern const struct file_operations onefilefs_dir_operations;
 
 #endif
