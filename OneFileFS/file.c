@@ -10,6 +10,9 @@
 
 #include "onefilefs.h"
 
+//no concurrent writes for now - only one file and one block anyway
+static DEFINE_MUTEX(onefilefs_write_lock);
+
 // get an inode from its inode number
 // currently we have only one inode, the root inode, which is in block 1, so we simply return that
 struct onefilefs_inode *onefilefs_get_inode(struct super_block *sb, uint64_t inode_no)
@@ -66,6 +69,41 @@ ssize_t onefilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
     *off += nbytes;
     return nbytes;
 }
+
+//Currently we support only a write on the block already allocated
+ssize_t onefilefs_write(struct file * filp, const char __user * buf, size_t len, loff_t * off)
+{
+    struct onefilefs_inode *inode = filp->f_inode->i_private;
+    struct buffer_head *bh;
+    char *buffer;
+
+    //check that off is whithin boundaries of the block (so offset can go from 0 to BLOCK_SIZE)
+    if (*off >= ONEFILEFS_DEFAULT_BLOCK_SIZE)
+        return 0;
+    else if (*off + len > ONEFILEFS_DEFAULT_BLOCK_SIZE)
+        len = ONEFILEFS_DEFAULT_BLOCK_SIZE - *off;
+
+    //get write mutex
+    if (mutex_lock_interruptible(&onefilefs_write_lock)) {
+        printk(KERN_ERR "Failed to acquire mutex lock %s +%d\n", __FILE__, __LINE__);
+        return 0;
+    }
+    //read the block, memcpy in change, mark block as dirty
+    bh = (struct buffer_head *)sb_bread(filp->f_path.dentry->d_inode->i_sb, inode->data_block_number);
+    buffer = (char *)bh->b_data;
+    memcpy(buffer + *off, buf, len);
+
+    *off += len;
+    
+    //mark buffer as dirty - system will update it when ready
+    mark_buffer_dirty(bh);
+
+    //release mutex and memory
+    brelse(bh);
+    mutex_unlock(&onefilefs_write_lock);
+    return len;
+}
+
 
 
 //this function is called when the VFS wants to connect the child dentry to an inode
@@ -127,5 +165,6 @@ const struct inode_operations onefilefs_inode_ops = {
 };
 
 const struct file_operations onefilefs_file_operations = {
-    .read = onefilefs_read
+    .read = onefilefs_read,
+    .write = onefilefs_write
 };
