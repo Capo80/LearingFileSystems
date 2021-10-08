@@ -62,7 +62,8 @@ int main(int argc, char *argv[])
 	root_inode.inode_no = ONEFILEFS_ROOT_INODE_NUMBER;
 	root_inode.data_block_number = ONEFILEFS_ROOT_DATA_BLOCK_NUMBER;
 	root_inode.dir_children_count = 1; //our only file
-
+	root_inode.mode = 0777;
+	
 	ret = write(fd, (char *)&root_inode, sizeof(root_inode));
 
 	if (ret != sizeof(root_inode)) {
