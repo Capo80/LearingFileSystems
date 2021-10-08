@@ -12,13 +12,14 @@
 
 //no concurrent writes for now - only one file and one block anyway
 static DEFINE_MUTEX(onefilefs_write_lock);
+static DEFINE_MUTEX(onefilefs_inodes_lock);
 
 // get an inode from its inode number
 // currently we have only one inode, the root inode, which is in block 1, so we simply return that
 struct onefilefs_inode *onefilefs_get_inode(struct super_block *sb, uint64_t inode_no)
 {
     struct onefilefs_sb_info *sfs_sb = sb->s_fs_info;
-    struct onefilefs_inode *sfs_inode = NULL;
+    struct onefilefs_inode *ofs_inode = NULL;
 
     int i;
     struct buffer_head *bh;
@@ -26,14 +27,14 @@ struct onefilefs_inode *onefilefs_get_inode(struct super_block *sb, uint64_t ino
     // who needs to release this??
     // do i malloc and copy the memory??
     bh = (struct buffer_head *)sb_bread(sb, ONEFILEFS_INODES_BLOCK_NUMBER); // all of our 2 inodes are in here
-    sfs_inode = (struct onefilefs_inode *) bh->b_data;
+    ofs_inode = (struct onefilefs_inode *) bh->b_data;
 
     //currently we have only 2 inodes in the block this is not that useful
     for (i=0; i < sfs_sb->inodes_count; i++) {
-        if (sfs_inode->inode_no == inode_no) {
-            return sfs_inode;
+        if (ofs_inode->inode_no == inode_no) {
+            return ofs_inode;
         }
-        sfs_inode++;
+        ofs_inode++;
     }
 
     return NULL;
@@ -73,8 +74,10 @@ ssize_t onefilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
 //Currently we support only a write on the block already allocated
 ssize_t onefilefs_write(struct file * filp, const char __user * buf, size_t len, loff_t * off)
 {
-    struct onefilefs_inode *inode = filp->f_inode->i_private;
+    struct onefilefs_inode *ofs_inode = filp->f_inode->i_private;
+    struct onefilefs_inode *device_inode;
     struct buffer_head *bh;
+    struct super_block* sb = filp->f_inode->i_sb;
     char *buffer;
 
     //check that off is whithin boundaries of the block (so offset can go from 0 to BLOCK_SIZE)
@@ -83,15 +86,31 @@ ssize_t onefilefs_write(struct file * filp, const char __user * buf, size_t len,
     else if (*off + len > ONEFILEFS_DEFAULT_BLOCK_SIZE)
         len = ONEFILEFS_DEFAULT_BLOCK_SIZE - *off;
 
+    //check that starting offset is <= file size
+    //not sure if this is the correct way to do this ??
+    //should i even do it? or should i allow write in random places?
+    if (*off > ofs_inode->file_size) {
+        printk(KERN_ERR "Starting offset is outside file boundaries, pos [%lld], file size [%lld]\n", *off, ofs_inode->file_size);
+        return 0;
+    }
+
     //get write mutex
     if (mutex_lock_interruptible(&onefilefs_write_lock)) {
         printk(KERN_ERR "Failed to acquire mutex lock %s +%d\n", __FILE__, __LINE__);
         return 0;
     }
+
+    printk(KERN_INFO "Starting write. pos[%lld], inode number[%llu], superblock magic [%lu], datablock number [%llu]\n", *off, ofs_inode->inode_no, sb->s_magic,  ofs_inode->data_block_number);
+
+
     //read the block, memcpy in change, mark block as dirty
-    bh = (struct buffer_head *)sb_bread(filp->f_path.dentry->d_inode->i_sb, inode->data_block_number);
+    bh = (struct buffer_head *)sb_bread(sb, ofs_inode->data_block_number);
     buffer = (char *)bh->b_data;
-    memcpy(buffer + *off, buf, len);
+    if (copy_from_user(buffer + *off, buf, len)) {
+        brelse(bh);
+        printk(KERN_ERR "Error copying file contents from the userspace buffer to the kernel space\n");
+        return -EFAULT;
+    }
 
     *off += len;
     
@@ -99,8 +118,36 @@ ssize_t onefilefs_write(struct file * filp, const char __user * buf, size_t len,
     mark_buffer_dirty(bh);
 
     //release mutex and memory
-    brelse(bh);
     mutex_unlock(&onefilefs_write_lock);
+    brelse(bh);
+
+    //not update inode file size if necessary
+    if (*off > ofs_inode->file_size) {
+
+        if (mutex_lock_interruptible(&onefilefs_inodes_lock)) {
+            printk(KERN_ERR "Failed to acquire mutex lock %s +%d\n", __FILE__, __LINE__);
+            return 0;
+        }
+
+        //load the block and save the new inode
+        bh = (struct buffer_head *)sb_bread(sb, ONEFILEFS_INODES_BLOCK_NUMBER);
+    
+        device_inode = (struct onefilefs_inode*) bh->b_data;
+
+        //we only have one file inode and its always in the same place so we don't need to iterate
+        device_inode++;
+
+        //size update here
+        device_inode->file_size = *off;
+
+        mark_buffer_dirty(bh);
+        brelse(bh);
+        mutex_unlock(&onefilefs_inodes_lock);
+
+        printk(KERN_INFO "File inode size correctly updated\n");
+
+    }
+    
     return len;
 }
 
@@ -126,13 +173,13 @@ struct dentry *onefilefs_lookup(struct inode *parent_inode, struct dentry *child
 
             //if its the same we connect the inode
             struct inode *inode;
-            struct onefilefs_inode *sfs_inode;
+            struct onefilefs_inode *ofs_inode;
 
-            sfs_inode = onefilefs_get_inode(sb, record->inode_no);
+            ofs_inode = onefilefs_get_inode(sb, record->inode_no);
 
             inode = new_inode(sb);
             inode->i_ino = record->inode_no;
-            inode_init_owner(inode, parent_inode, sfs_inode->mode);
+            inode_init_owner(inode, parent_inode, ofs_inode->mode);
             inode->i_sb = sb;
             inode->i_op = &onefilefs_inode_ops;
             
@@ -148,7 +195,7 @@ struct dentry *onefilefs_lookup(struct inode *parent_inode, struct dentry *child
             ktime_get_real_ts64(&curr_time);
             inode->i_atime = inode->i_mtime = inode->i_ctime = curr_time;
 
-            inode->i_private = sfs_inode;
+            inode->i_private = ofs_inode;
 
             d_add(child_dentry, inode);
             return NULL;
