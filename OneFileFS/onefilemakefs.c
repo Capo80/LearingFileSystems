@@ -77,6 +77,7 @@ int main(int argc, char *argv[])
 	file_inode.inode_no = ONEFILEFS_FILE_INODE_NUMBER;
 	file_inode.data_block_number = ONEFILEFS_FILE_DATA_BLOCK_NUMBER;
 	file_inode.file_size = sizeof(file_body);
+	file_inode.mode = 0777;
 	ret = write(fd, (char *)&file_inode, sizeof(file_inode));
 
 	if (ret != sizeof(root_inode)) {

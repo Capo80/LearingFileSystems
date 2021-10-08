@@ -16,23 +16,26 @@ static DEFINE_MUTEX(onefilefs_inodes_lock);
 
 // get an inode from its inode number
 // currently we have only one inode, the root inode, which is in block 1, so we simply return that
+// internal function
 struct onefilefs_inode *onefilefs_get_inode(struct super_block *sb, uint64_t inode_no)
 {
     struct onefilefs_sb_info *sfs_sb = sb->s_fs_info;
     struct onefilefs_inode *ofs_inode = NULL;
+    struct onefilefs_inode *to_return = NULL;
 
     int i;
     struct buffer_head *bh;
 
-    // who needs to release this??
-    // do i malloc and copy the memory??
     bh = (struct buffer_head *)sb_bread(sb, ONEFILEFS_INODES_BLOCK_NUMBER); // all of our 2 inodes are in here
     ofs_inode = (struct onefilefs_inode *) bh->b_data;
 
     //currently we have only 2 inodes in the block this is not that useful
     for (i=0; i < sfs_sb->inodes_count; i++) {
         if (ofs_inode->inode_no == inode_no) {
-            return ofs_inode;
+            to_return = kmalloc(sizeof(struct onefilefs_inode), GFP_KERNEL);
+            memcpy(to_return, ofs_inode, sizeof(struct onefilefs_inode));
+            brelse(bh);
+            return to_return;
         }
         ofs_inode++;
     }
@@ -165,7 +168,6 @@ struct dentry *onefilefs_lookup(struct inode *parent_inode, struct dentry *child
     int i;
 
     //we never return a dentry currently, we should check if the dentry is already connected, if it is, we return it
-
     bh = (struct buffer_head *)sb_bread(sb, parent->data_block_number);
     record = (struct onefilefs_dir_record *) bh->b_data;
     for (i = 0; i < parent->dir_children_count; i++) {
@@ -179,7 +181,8 @@ struct dentry *onefilefs_lookup(struct inode *parent_inode, struct dentry *child
 
             inode = new_inode(sb);
             inode->i_ino = record->inode_no;
-            inode_init_owner(inode, parent_inode, ofs_inode->mode);
+            //inode_init_owner(inode, parent_inode, ofs_inode->mode);
+            inode->i_mode = ofs_inode->mode;
             inode->i_sb = sb;
             inode->i_op = &onefilefs_inode_ops;
             
@@ -198,6 +201,7 @@ struct dentry *onefilefs_lookup(struct inode *parent_inode, struct dentry *child
             inode->i_private = ofs_inode;
 
             d_add(child_dentry, inode);
+            kfree(ofs_inode);
             return NULL;
         }
     }
