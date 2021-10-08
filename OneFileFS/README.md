@@ -14,9 +14,11 @@ Current operations:
 - iterate, used to read a directory, it reads the information of the root dir, which has only one children, the file
 - lookup, connect a dentry to an inode (this is used by ls to read the file information)
 - file read, reads our only file
-- file write, writes in our only file, could be bugged (need to check)
+- file write, writes in our only file
 
 This FS has an actual superblock struct definition, with very little information because we don't do much.
+
+Max size of the file is one block, it should be pretty simple to make the size expandible but i dont think i'll do it in this file system.
 
 There is also a simple makefs script to to format a device for this filesystem.
 
