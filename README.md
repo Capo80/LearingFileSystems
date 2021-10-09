@@ -16,9 +16,13 @@ An implementation of every operation of a FS (file present in the linux kernel):
 
 https://elixir.bootlin.com/linux/latest/source/fs/libfs.c
 
-A simple FS implemtation, can follow commits for incremental development: 
+A simple FS implementation, can follow commits for incremental development (outdated): 
 
 https://github.com/psankar/simplefs
+
+Another simple FS implementation, a bit more modern:
+
+https://github.com/jserv/simplefs
 
 Quick, simple, hands-on explanation of VFS end FS
 
