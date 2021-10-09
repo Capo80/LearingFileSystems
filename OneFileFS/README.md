@@ -10,7 +10,7 @@ Problems:
 - file permissions do not work
 - there is too little information in the inode and some of it is not updated properly
  
-The objective of this FS was to understand how to link the operations and how to interact with the undelying block device, so i feel like the current state is a good stopping point.
+The objective of this FS was to understand how to link the operations and how to interact with the underlying block device, so i feel like the current state is a good stopping point.
 
 ## Description
 
