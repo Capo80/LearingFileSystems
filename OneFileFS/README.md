@@ -1,6 +1,6 @@
 # One File FS
 
-This FS contains a single file, the block organization is the following.
+This FS contains a single file, the block organization is the following. This FS does not use address space operations, which is probrably a bad idea.
 
 ```
 ---------------------------------------------------
