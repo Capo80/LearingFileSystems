@@ -1,6 +1,21 @@
 # One File FS
 
-This FS contains a single file, the block organization is the following. This FS does not use address space operations, which is probrably a bad idea.
+## Disclaimer
+
+This FS has been created for learning purposes and is objectively terrible, most of the stuff in here is outdated and should not be used.
+
+Problems:
+- using of normal write and read and not address space operations
+- memory managment is a mess, no use of caches and probrably a lot of leaks
+- file permissions do not work
+- there is too little information in the inode and some of it is not updated properly
+ 
+The objective of this FS was to understand how to link the operations and how to interact with the undelying block device, so i feel like the current state is a good stopping point.
+
+## Description
+
+
+This FS contains a single file, the block organization is the following.
 
 ```
 ---------------------------------------------------
